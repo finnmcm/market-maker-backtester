@@ -1,0 +1,20 @@
+CLAUDE.md
+build/
+bin/
+out/
+cmake-build-debug/
+cmake-build-release/
+
+# Specific CMake artifacts if an in-source build accidentally occurs
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+
+# Keep user-specific presets private, but track shared CMakePresets.json
+CMakeUserPresets.json

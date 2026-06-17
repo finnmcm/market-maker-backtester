@@ -1,0 +1,22 @@
+{
+  "configurations": [
+    {
+      "name": "macOS-clang-boost",
+      "compilerPath": "/usr/bin/clang++",
+      "intelliSenseMode": "macos-clang-arm64",      // use macos-clang-x64 on Intel Macs
+      "cStandard": "c17",
+      "cppStandard": "c++20",
+
+      "includePath": [
+        "${workspaceFolder}/**",
+        "/usr/local/opt/boost"           // Homebrew’s Boost headers
+      ],
+
+      "defines": [
+        "BOOST_ASIO_NO_DEPRECATED",
+        "BOOST_ASIO_DISABLE_CONCEPTS"
+      ]
+    }
+  ],
+  "version": 4
+}
