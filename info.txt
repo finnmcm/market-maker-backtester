@@ -1,0 +1,6 @@
+Review anything written as *.proposed and merge it.
+  2. In Claude Code, run /agents to confirm systems-reviewer and markets-tutor,
+     and /hooks to confirm the PreToolUse + SessionEnd hooks loaded.
+  3. Try a sanitizer build:  cmake --preset tsan && cmake --build --preset tsan
+  4. Invoke a reviewer with:  @systems-reviewer   (or @markets-tutor)
+  5. Tutor commands:  /explain <concept>   /quiz <topic>   /critique-mm   /latency-review

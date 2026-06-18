@@ -1,11 +1,14 @@
 CLAUDE.md
+
+# Build outputs
 build/
 bin/
 out/
 cmake-build-debug/
 cmake-build-release/
+runs/
 
-# Specific CMake artifacts if an in-source build accidentally occurs
+# CMake in-source artifacts
 CMakeCache.txt
 CMakeFiles/
 CMakeScripts/
@@ -15,6 +18,29 @@ cmake_install.cmake
 install_manifest.txt
 compile_commands.json
 CTestTestfile.cmake
-
-# Keep user-specific presets private, but track shared CMakePresets.json
 CMakeUserPresets.json
+
+# Compiled C++ artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dSYM/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.env
+venv/
+.venv/
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# IDE — editor-specific files should not be committed
+.vscode/
+.idea/
+
+# Accidental empty artifact (wrong-cased duplicate of CMakeLists.txt)
+engine/CMakelists
