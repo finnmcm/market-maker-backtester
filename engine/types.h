@@ -31,7 +31,8 @@ struct Order {
 
 };
 struct Level {
-    std::deque<Order> orders; 
+    std::deque<Order> orders;
+    double quantity = 0;
 };
 
 using OrderIterator = std::deque<Order>::iterator;
@@ -49,3 +50,10 @@ struct Event {
 };   
 using EventQueue = boost::lockfree::spsc_queue<Event,
                                            boost::lockfree::capacity<4096>>;
+
+struct BBO {
+  double bestBidPrice;
+  double bestAskPrice;
+  double bidQty;
+  double askQty;
+};

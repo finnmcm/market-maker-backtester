@@ -10,6 +10,7 @@ void OrderBook::addOrder(Order& order){
             if(order.quantity != 0){
                 Level& orderLevel = (order.side == Side::BUY) ? OrderBook::bids[order.price] : asks[order.price];
             orderLevel.orders.push_back(order);
+            orderLevel.quantity += order.quantity;
             //find its position in the queue and add it to the unordered map for later lookup
             OrderIterator iter;
             iter = std::prev(orderLevel.orders.end());
@@ -35,15 +36,21 @@ bool OrderBook::cancelOrder(OrderID id){
             return false;
         //delete the specific order from that level, using the stored iterator in the orderMap
         Level& priceLevel = levelFinder->second;
+        priceLevel.quantity -= ref.iterator->quantity;
         priceLevel.orders.erase(ref.iterator);
-    }
+        if(priceLevel.orders.empty())
+            OrderBook::bids.erase(levelFinder);
+     }
     else{
         auto levelFinder = OrderBook::asks.find(ref.price);
         if(levelFinder == OrderBook::asks.end())
             return false;
         
         Level& priceLevel = levelFinder->second;
+        priceLevel.quantity -= ref.iterator->quantity;
         priceLevel.orders.erase(ref.iterator);
+        if(priceLevel.orders.empty())
+            OrderBook::asks.erase(levelFinder);
     }
     //delete from orderMap
     OrderBook::orderMap.erase(id);
@@ -71,18 +78,58 @@ void OrderBook::print(){
     std::cout << std::endl;
 }
 
-bool OrderBook::modifyOrder(OrderID id, int newQuantity){
+bool OrderBook::modifyOrder(OrderID id, double newQuantity){
     auto ref = OrderBook::orderMap.find(id);
     if(ref == orderMap.end())
         return false;
-    
-    OrderIterator& order = ref->second.iterator;
+
+    OrderRef& orderRef = ref->second;
+    OrderIterator& order = orderRef.iterator;
+    // signed delta: positive grows the level, negative shrinks it
+    double delta = newQuantity - order->quantity;
+
+    if(order->side == Side::BUY){
+        auto levelFinder = OrderBook::bids.find(orderRef.price);
+        if(levelFinder == OrderBook::bids.end())
+            return false;
+        levelFinder->second.quantity += delta;
+    }
+    else{
+        auto levelFinder = OrderBook::asks.find(orderRef.price);
+        if(levelFinder == OrderBook::asks.end())
+            return false;
+        levelFinder->second.quantity += delta;
+    }
     order->quantity = newQuantity;
     if(order->side == Side::BUY)
         std::cout << "BID#" << id << " now listed at x" << newQuantity << std::endl;
     else
         std::cout << "SELL#" << id << " now listed at x" << newQuantity << std::endl;
     return true;
+}
+BBO OrderBook::getBBO() const{
+    BBO b;
+    if(bids.empty()){
+        b.bestBidPrice = -1;
+        b.bidQty = -1;
+    }
+    else{        
+        b.bestBidPrice = bids.begin()->first;
+        b.bidQty = bids.begin()->second.quantity;
+
+    }
+    if(asks.empty()){
+      b.bestAskPrice = -1;
+      b.askQty = -1;
+    }
+    else {
+        b.bestAskPrice = asks.begin()->first;
+        b.askQty = asks.begin()->second.quantity;
+    }
+       return b;
+}
+void OrderBook::printBBO(const BBO& b){
+
 }
 bool OrderBook::orderExists(OrderID id){
     auto ref = orderMap.find(id);
@@ -97,17 +144,17 @@ const Order* OrderBook::getOrder(OrderID id){
     Order* o = &(*order);
     return o;
 }
-Price OrderBook::getBestBid(){
+Price OrderBook::getBestBidPrice() const{
     if(bids.empty())
         return -1;
     else
-        return bids.rbegin()->first;
+        return bids.begin()->first;
 }
-Price OrderBook::getBestAsk(){
+Price OrderBook::getBestAskPrice() const{
     if(asks.empty())
         return -1;
     else
-        return asks.rbegin()->first;
+        return asks.begin()->first;
 }
 void OrderBook::match(Order& incomingOrder){
     //BUYS
@@ -136,6 +183,7 @@ void OrderBook::match(Order& incomingOrder){
                 break;
         }
         }
+        pruneEmptyFront(asks);
         //calculate weighted price average of filled order
         double totalCost = 0.0;
         int totalQuantity = 0;
@@ -182,6 +230,7 @@ void OrderBook::match(Order& incomingOrder){
                 break;
         }
         }
+        pruneEmptyFront(bids);
         //calculate weighted price average of filled order
         double totalCost = 0.0;
         int totalQuantity = 0;
@@ -214,12 +263,14 @@ void OrderBook::traversePriceLevel(std::vector<std::pair<Price, int>>& pricesFil
             if(curr->quantity > incomingOrder.quantity){
                 curr->quantity -= incomingOrder.quantity;
                 pricesFilledAt.push_back({curr->price, incomingOrder.quantity});
+                level.quantity -= incomingOrder.quantity;
                 incomingOrder.quantity = 0;
                 break;
             }
             else{
                 //less than or equal, meaning we filled that limit order and it should be removed from the book
                 pricesFilledAt.push_back({curr->price, curr->quantity});
+                level.quantity -= curr->quantity;
                 incomingOrder.quantity -= curr->quantity;
                 orderMap.erase(curr->id);
                 curr = level.orders.erase(curr);
