@@ -4,6 +4,7 @@ OrderBook::OrderBook() {
 
 }
 void OrderBook::addOrder(Order& order){
+        lastTrades_.clear();
         if(order.type == OrderType::LIMIT){
             match(order);
             
@@ -23,6 +24,7 @@ void OrderBook::addOrder(Order& order){
         }
 }
 bool OrderBook::cancelOrder(OrderID id){
+    lastTrades_.clear();
     //get position in asks/bids from the ordermap
     auto iter = OrderBook::orderMap.find(id);
     if(iter == OrderBook::orderMap.end())
@@ -79,6 +81,7 @@ void OrderBook::print(){
 }
 
 bool OrderBook::modifyOrder(OrderID id, double newQuantity){
+    lastTrades_.clear();
     auto ref = OrderBook::orderMap.find(id);
     if(ref == orderMap.end())
         return false;
@@ -129,7 +132,13 @@ BBO OrderBook::getBBO() const{
        return b;
 }
 void OrderBook::printBBO(const BBO& b){
-
+  std::cout << "Best Bid: $" << b.bestBidPrice << " for " << b.bidQty << " shares." << std::endl;
+  std::cout << "Best Ask: $" << b.bestAskPrice << " for " << b.askQty << " shares." << std::endl;
+}
+void OrderBook::printTrade(const Trade& t){
+  std::cout << "TRADE " << (t.takerSide == Side::BUY ? "BUY " : "SELL")
+            << " taker#" << t.takerId << " maker#" << t.makerId
+            << " $" << t.price << " x" << t.quantity << std::endl;
 }
 bool OrderBook::orderExists(OrderID id){
     auto ref = orderMap.find(id);
@@ -164,12 +173,11 @@ void OrderBook::match(Order& incomingOrder){
                 std::cout << "no current asks, unable to execute market order" << std::endl;
             return;
         }
-        std::vector<std::pair<Price, int>> pricesFilledAt;
         //MARKET ORDERS
         if(incomingOrder.type == OrderType::MARKET){
             for(auto level = asks.begin(); level != asks.end(); ++level){
             if(incomingOrder.quantity > 0)
-                traversePriceLevel(pricesFilledAt, incomingOrder, level->second);
+                traversePriceLevel(incomingOrder, level->second);
             else
                 break;
         }
@@ -178,32 +186,14 @@ void OrderBook::match(Order& incomingOrder){
         else{
             for(auto level = asks.begin(); level != asks.end(); ++level){
             if(incomingOrder.quantity > 0 && level->first <= incomingOrder.price)
-                traversePriceLevel(pricesFilledAt, incomingOrder, level->second);
+                traversePriceLevel(incomingOrder, level->second);
             else
                 break;
         }
         }
         pruneEmptyFront(asks);
-        //calculate weighted price average of filled order
-        double totalCost = 0.0;
-        int totalQuantity = 0;
-
-        for (const auto& [price, qty] : pricesFilledAt) {
-            totalCost += price * qty;
-            totalQuantity += qty;
-        }
-        double avgFillPrice = (totalQuantity > 0) ? (totalCost / totalQuantity) : 0.0;
-        if(totalQuantity != 0){
-        if(incomingOrder.quantity > 0){
-            std::cout << "Your BUY order was partially filled at $" << avgFillPrice << " for " << totalQuantity << " shares.";
-            if(incomingOrder.type == OrderType::MARKET)
-            std::cout << "The remaining " << incomingOrder.quantity << " shares were discared";
-
-            std::cout << std::endl;
-        }
-        else
-            std::cout << "Your BUY order was successfully filled at $" << avgFillPrice << " for " << totalQuantity << " shares" << std::endl;
-    }
+        // Fills are recorded in lastTrades_ by traversePriceLevel; the consumer
+        // (sim loop / market data) reads them. No stdout summary here anymore.
         return;
     }
     //SELLS
@@ -213,11 +203,10 @@ void OrderBook::match(Order& incomingOrder){
                 std::cout << "no current bids, unable to execute market order" << std::endl;
             return;
         }
-        std::vector<std::pair<Price, int>> pricesFilledAt;
         if(incomingOrder.type == OrderType::MARKET){
             for(auto level = bids.begin(); level != bids.end(); ++level){
             if(incomingOrder.quantity > 0)
-                traversePriceLevel(pricesFilledAt, incomingOrder, level->second);
+                traversePriceLevel(incomingOrder, level->second);
             else
                 break;
         }
@@ -225,51 +214,35 @@ void OrderBook::match(Order& incomingOrder){
         else{
             for(auto level = bids.begin(); level != bids.end(); ++level){
             if(incomingOrder.quantity > 0 && level->first >= incomingOrder.price)
-                traversePriceLevel(pricesFilledAt, incomingOrder, level->second);
+                traversePriceLevel(incomingOrder, level->second);
             else
                 break;
         }
         }
         pruneEmptyFront(bids);
-        //calculate weighted price average of filled order
-        double totalCost = 0.0;
-        int totalQuantity = 0;
-
-        for (const auto& [price, qty] : pricesFilledAt) {
-            totalCost += price * qty;
-            totalQuantity += qty;
-        }
-        double avgFillPrice = (totalQuantity > 0) ? (totalCost / totalQuantity) : 0.0;
-        if(totalQuantity != 0){
-        if(incomingOrder.quantity > 0){
-            std::cout << "Your SELL order was partially filled at $" << avgFillPrice << " for " << totalQuantity << " shares.";
-            if(incomingOrder.type == OrderType::MARKET)
-             std::cout << "The remaining " << incomingOrder.quantity << " shares were discared";
-            
-            std::cout << std::endl;
-        }
-        else
-            std::cout << "Your SELL order was successfully filled at $" << avgFillPrice << " for " << totalQuantity << " shares" << std::endl;
-        }
+        // Fills recorded in lastTrades_ by traversePriceLevel; consumer reads them.
         return;
     }
 
 }
-void OrderBook::traversePriceLevel(std::vector<std::pair<Price, int>>& pricesFilledAt, Order& incomingOrder, Level& level){
+void OrderBook::traversePriceLevel(Order& incomingOrder, Level& level){
     for(auto curr = level.orders.begin(); curr != level.orders.end();){
             if(incomingOrder.quantity <= 0)
                 break;
 
             if(curr->quantity > incomingOrder.quantity){
+                // resting order partially filled; trade prints at the maker's price
+                lastTrades_.push_back(Trade{incomingOrder.id, curr->id, curr->price,
+                                            incomingOrder.quantity, incomingOrder.side});
                 curr->quantity -= incomingOrder.quantity;
-                pricesFilledAt.push_back({curr->price, incomingOrder.quantity});
                 level.quantity -= incomingOrder.quantity;
                 incomingOrder.quantity = 0;
                 break;
             }
             else{
                 //less than or equal, meaning we filled that limit order and it should be removed from the book
-                pricesFilledAt.push_back({curr->price, curr->quantity});
+                lastTrades_.push_back(Trade{incomingOrder.id, curr->id, curr->price,
+                                            curr->quantity, incomingOrder.side});
                 level.quantity -= curr->quantity;
                 incomingOrder.quantity -= curr->quantity;
                 orderMap.erase(curr->id);

@@ -6,7 +6,9 @@
 #include "orderbook.h"
 #include "types.h"
 #include "tcp_reader.h"
+#ifdef ENABLE_WS
 #include "websocket_reader.h"
+#endif
 #include <memory>
 #include <thread>
 #include <functional>
@@ -30,7 +32,10 @@ inline void book_thread_fn(EventQueue& q, OrderBook& b, std::atomic_bool& stop) 
                     break;
                 }
             }
-            b.print();
+            // Market-data output: structured trade prints + a moving top-of-book.
+            for (const Trade& t : b.lastTrades())
+                b.printTrade(t);
+            b.printBBO(b.getBBO());
         }
        _mm_pause();  
     }
@@ -58,6 +63,7 @@ void runTcpWire(std::atomic_bool& quit){
     net_thread.join();
     bookThr.join();
 }
+#ifdef ENABLE_WS
 void runBtcWire(std::atomic_bool& quit){
     boost::asio::io_context io;
     boost::asio::ssl::context ssl{boost::asio::ssl::context::tlsv12_client};
@@ -82,6 +88,7 @@ void runBtcWire(std::atomic_bool& quit){
     reader->stop();
     //ioThread.join();
 }
+#endif // ENABLE_WS
 std::atomic<bool> quit{false};
 
 int main(){

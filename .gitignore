@@ -2,8 +2,9 @@
 CLAUDE.md
 HANDOFF.md
 
-# Build outputs
-build/
+# Build outputs (any build dir at any depth: build/, build2/, engine/build/, ...)
+build*/
+**/build*/
 bin/
 out/
 cmake-build-debug/
@@ -43,6 +44,3 @@ venv/
 # IDE — editor-specific files should not be committed
 .vscode/
 .idea/
-
-# Accidental empty artifact (wrong-cased duplicate of CMakeLists.txt)
-engine/CMakelists

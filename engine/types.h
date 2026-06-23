@@ -1,20 +1,24 @@
+#pragma once
 
+#include <cstdint>
 #include <deque>
 #include <map>
 #include <unordered_map>
 #include <boost/asio.hpp>
+#include <boost/lockfree/spsc_queue.hpp>
+
+// Beast/SSL are only needed by the Coinbase WebSocket feed (BUILD_WS).
+#ifdef ENABLE_WS
 #include <boost/beast.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/ssl.hpp>
-#include <boost/lockfree/spsc_queue.hpp>
-#pragma once
-
-
 namespace beast = boost::beast;         // from <boost/beast.hpp>
 namespace http = beast::http;           // from <boost/beast/http.hpp>
 namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
-namespace net = boost::asio;            // from <boost/asio.hpp>
 namespace ssl = boost::asio::ssl;       // from <boost/asio/ssl.hpp>
+#endif
+
+namespace net = boost::asio;            // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
 
 //easier to read
@@ -56,4 +60,14 @@ struct BBO {
   double bestAskPrice;
   double bidQty;
   double askQty;
+};
+
+// One execution between an aggressing (taker) order and a resting (maker) order.
+// Under price-time priority the trade prints at the maker's resting price.
+struct Trade {
+  OrderID takerId;    // aggressing/incoming order
+  OrderID makerId;    // resting order that was hit
+  double  price;      // execution price = resting (maker) price
+  double  quantity;   // shares filled in this execution
+  Side    takerSide;  // BUY = aggressor lifted asks; SELL = aggressor hit bids
 };

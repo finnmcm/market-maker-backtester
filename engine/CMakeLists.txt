@@ -1,39 +1,44 @@
-cmake_minimum_required(VERSION 3.10)
-project(MyProject)
+# engine/ — limit order book matching engine.
+#
+# Builds two things:
+#   engine_lib  — STATIC library with the book + TCP wire; everything downstream
+#                 (sim, flow, mm, bench, tests) links this for the in-process path.
+#   ordermatch  — standalone executable running the TCP order-entry wire.
+#
+# The Coinbase WebSocket feed is off by default (it is unused by the simulator and
+# pulls in OpenSSL + Boost.Beast). Enable with -DBUILD_WS=ON if you want it.
 
-# Set C++ standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+option(BUILD_WS "Build the Coinbase WebSocket feed (needs OpenSSL + Boost.Beast)" OFF)
 
-# Find Boost libraries (system, filesystem, thread)
-find_package(Boost 1.71 REQUIRED COMPONENTS system filesystem thread)
-
-# Find OpenSSL for TLS
-find_package(OpenSSL REQUIRED)
-
-
-# Find Threads (for portability)
+find_package(Boost 1.71 REQUIRED COMPONENTS system thread)
 find_package(Threads REQUIRED)
 
-# Add source files
-add_executable(ordermatch main.cpp orderbook.cpp tcp_reader.cpp websocket_reader.cpp)
+set(ENGINE_SOURCES
+    orderbook.cpp
+    tcp_reader.cpp
+)
+if(BUILD_WS)
+    list(APPEND ENGINE_SOURCES websocket_reader.cpp)
+endif()
 
-# Include directories
-target_include_directories(ordermatch
-    PRIVATE
-        ${Boost_INCLUDE_DIRS}
-        ${OPENSSL_INCLUDE_DIR}
-        ${nlohmann_json_INCLUDE_DIRS}
+add_library(engine_lib STATIC ${ENGINE_SOURCES})
+
+# PUBLIC include dir so downstream targets (and the exe) resolve engine headers.
+target_include_directories(engine_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+# Boost.Lockfree / Boost.Asio are header-only; Boost::system carries their includes.
+target_link_libraries(engine_lib
+    PUBLIC
+        Boost::system
+        Boost::thread
+        Threads::Threads
 )
 
-# Link libraries
-# Use Boost variables to ensure compatibility
-target_link_libraries(ordermatch
-    PRIVATE
-        ${Boost_SYSTEM_LIBRARY}
-        ${Boost_FILESYSTEM_LIBRARY}
-        ${Boost_THREAD_LIBRARY}
-        ${OPENSSL_SSL_LIBRARY}
-        ${OPENSSL_CRYPTO_LIBRARY}
-        pthread          # on Linux/macOS
-)
+if(BUILD_WS)
+    find_package(OpenSSL REQUIRED)
+    target_compile_definitions(engine_lib PUBLIC ENABLE_WS)
+    target_link_libraries(engine_lib PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+endif()
+
+add_executable(ordermatch main.cpp)
+target_link_libraries(ordermatch PRIVATE engine_lib)

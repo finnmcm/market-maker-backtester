@@ -19,6 +19,10 @@ class OrderBook {
 
     BBO getBBO() const;
     void printBBO(const BBO& b);
+    void printTrade(const Trade& t);
+    // Trades produced by the most recent add/cancel/modify (cleared at the start of each).
+    // Only addOrder can populate this; cancel/modify leave it empty.
+    const std::vector<Trade>& lastTrades() const { return lastTrades_; }
     const Order* getOrder(OrderID id);
 
     Price getBestBidPrice() const;
@@ -36,7 +40,11 @@ class OrderBook {
 
     
     void match(Order& incomingOrder);
-    void traversePriceLevel(std::vector<std::pair<Price, int>>& pricesFilledAt, Order& incomingOrder, Level& level);
+    void traversePriceLevel(Order& incomingOrder, Level& level);
+
+    // Trades from the most recent operation. Reused buffer (cleared, not reallocated)
+    // so the fill path stays allocation-free once warmed.
+    std::vector<Trade> lastTrades_;
 
     // Drop fully-consumed levels left at the front of a book side so begin()
     // (and therefore the BBO) never points at an empty husk. Templated because
