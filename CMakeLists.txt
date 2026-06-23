@@ -25,8 +25,10 @@ endif()
 # plus the standalone `ordermatch` TCP executable.
 add_subdirectory(engine)
 
+# The in-process backtest harness: drives the engine by direct calls (no wire).
+add_subdirectory(sim)     # simulation harness / clock / wiring
+
 # Components below are added as the build plan reaches them:
-# add_subdirectory(sim)     # simulation harness / clock / wiring
 # add_subdirectory(flow)    # synthetic flow generator
 # add_subdirectory(mm)      # market-maker strategy
 # add_subdirectory(bench)   # microbenchmarks / latency harnesses
