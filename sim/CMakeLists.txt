@@ -4,4 +4,7 @@
 
 add_executable(sim sim.cpp)
 target_link_libraries(sim PRIVATE engine_lib)
-target_include_directories(sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+# sim/ for flow_generator.h; sim/flow/ for the ZI flow unit #included by sim.cpp.
+target_include_directories(sim PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/flow)
